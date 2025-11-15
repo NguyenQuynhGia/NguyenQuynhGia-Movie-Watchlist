@@ -1,0 +1,18 @@
+{
+  "scheme": "acme",
+  "userInterfaceStyle": "automatic",
+  "orientation": "default",
+  "web": {
+    "output": "static"
+  },
+  "plugins": [
+    [
+      "expo-router",
+      {
+        "origin": "https://n"
+      }
+    ]
+  ],
+  "name": "NguyenQuynhGia_22001575_final10_12",
+  "slug": "NguyenQuynhGia_22001575_final10_12"
+}
