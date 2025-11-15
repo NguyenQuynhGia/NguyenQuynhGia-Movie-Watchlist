@@ -13,7 +13,13 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { addMovie, getAllMovies, initializeDatabase, MovieRecord } from "../db";
+import {
+  addMovie,
+  getAllMovies,
+  initializeDatabase,
+  updateMovieWatched,
+} from "../db";
+import type { MovieRecord, WatchedFlag } from "../db";
 
 type FormState = {
   title: string;
@@ -89,9 +95,23 @@ export default function Page() {
     loadMovies();
   }, [loadMovies]);
 
+  const handleToggleWatched = useCallback(async (movie: MovieRecord) => {
+    const nextWatched = (movie.watched ? 0 : 1) as WatchedFlag;
+    try {
+      await updateMovieWatched(movie.id, nextWatched);
+      setMovies((prev) =>
+        prev.map((entry) =>
+          entry.id === movie.id ? { ...entry, watched: nextWatched } : entry,
+        ),
+      );
+    } catch (error) {
+      console.error("Failed to toggle watched state", error);
+    }
+  }, []);
+
   const renderItem = useCallback<ListRenderItem<MovieRecord>>(
-    ({ item }) => <MovieListItem movie={item} />,
-    [],
+    ({ item }) => <MovieListItem movie={item} onToggle={handleToggleWatched} />,
+    [handleToggleWatched],
   );
 
   const openAddModal = useCallback(() => {
@@ -241,15 +261,31 @@ export default function Page() {
   );
 }
 
-function MovieListItem({ movie }: { movie: MovieRecord }) {
-  const statusLabel = movie.watched ? "Đã xem" : "Chưa xem";
+type MovieListItemProps = {
+  movie: MovieRecord;
+  onToggle: (movie: MovieRecord) => void;
+};
+
+function MovieListItem({ movie, onToggle }: MovieListItemProps) {
+  const statusLabel = movie.watched ? "✓ Đã xem" : "Chưa xem";
   const ratingLabel =
     movie.rating !== null ? `Đánh giá: ${movie.rating}/5` : "Chưa đánh giá";
 
   return (
-    <View style={styles.card}>
+    <TouchableOpacity
+      style={[styles.card, movie.watched ? styles.cardWatched : undefined]}
+      onPress={() => onToggle(movie)}
+      activeOpacity={0.85}
+    >
       <View style={styles.cardHeader}>
-        <Text style={styles.cardTitle}>{movie.title}</Text>
+        <Text
+          style={[
+            styles.cardTitle,
+            movie.watched ? styles.cardTitleWatched : undefined,
+          ]}
+        >
+          {movie.title}
+        </Text>
         {movie.year ? <Text style={styles.cardYear}>({movie.year})</Text> : null}
       </View>
       <View style={styles.cardFooter}>
@@ -263,7 +299,7 @@ function MovieListItem({ movie }: { movie: MovieRecord }) {
         </Text>
         <Text style={styles.ratingText}>{ratingLabel}</Text>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -436,6 +472,10 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 1,
   },
+  cardWatched: {
+    backgroundColor: "#f3f4f6",
+    borderColor: "#d1d5db",
+  },
   cardHeader: {
     flexDirection: "row",
     alignItems: "baseline",
@@ -446,6 +486,10 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     color: "#111827",
+  },
+  cardTitleWatched: {
+    color: "#6b7280",
+    textDecorationLine: "line-through",
   },
   cardYear: {
     fontSize: 14,

@@ -89,3 +89,8 @@ export async function addMovie(payload: {
     now,
   );
 }
+
+export async function updateMovieWatched(id: number, watched: WatchedFlag) {
+  const db = await getDatabase();
+  return db.runAsync("UPDATE movies SET watched = ? WHERE id = ?", watched, id);
+}
