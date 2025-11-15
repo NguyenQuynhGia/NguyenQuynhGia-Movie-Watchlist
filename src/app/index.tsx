@@ -17,6 +17,7 @@ import {
   addMovie,
   getAllMovies,
   initializeDatabase,
+  updateMovieDetails,
   updateMovieWatched,
 } from "../db";
 import type { MovieRecord, WatchedFlag } from "../db";
@@ -35,7 +36,9 @@ export default function Page() {
   const [movies, setMovies] = useState<MovieRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [isAddModalVisible, setAddModalVisible] = useState(false);
+  const [isModalVisible, setModalVisible] = useState(false);
+  const [modalMode, setModalMode] = useState<"add" | "edit">("add");
+  const [editingMovie, setEditingMovie] = useState<MovieRecord | null>(null);
   const [formValues, setFormValues] = useState<FormState>({
     title: "",
     year: "",
@@ -109,24 +112,46 @@ export default function Page() {
     }
   }, []);
 
-  const renderItem = useCallback<ListRenderItem<MovieRecord>>(
-    ({ item }) => <MovieListItem movie={item} onToggle={handleToggleWatched} />,
-    [handleToggleWatched],
-  );
-
   const openAddModal = useCallback(() => {
+    setModalMode("add");
+    setEditingMovie(null);
     resetForm();
     setFormErrors({});
     setSubmitting(false);
-    setAddModalVisible(true);
+    setModalVisible(true);
   }, [resetForm]);
 
-  const closeAddModal = useCallback(() => {
-    setAddModalVisible(false);
+  const handleEditMovie = useCallback((movie: MovieRecord) => {
+    setModalMode("edit");
+    setEditingMovie(movie);
+    setFormValues({
+      title: movie.title,
+      year: movie.year ? String(movie.year) : "",
+      rating: movie.rating !== null ? String(movie.rating) : "",
+    });
+    setFormErrors({});
+    setSubmitting(false);
+    setModalVisible(true);
+  }, []);
+
+  const closeModal = useCallback(() => {
+    setModalVisible(false);
     setFormErrors({});
     resetForm();
     setSubmitting(false);
+    setEditingMovie(null);
   }, [resetForm]);
+
+  const renderItem = useCallback<ListRenderItem<MovieRecord>>(
+    ({ item }) => (
+      <MovieListItem
+        movie={item}
+        onToggle={handleToggleWatched}
+        onEdit={handleEditMovie}
+      />
+    ),
+    [handleEditMovie, handleToggleWatched],
+  );
 
   const updateFormValue = useCallback((field: keyof FormState, value: string) => {
     setFormValues((prev) => ({ ...prev, [field]: value }));
@@ -140,7 +165,7 @@ export default function Page() {
     });
   }, []);
 
-  const handleSubmitNewMovie = useCallback(async () => {
+  const handleSubmitMovie = useCallback(async () => {
     const trimmedTitle = formValues.title.trim();
     const trimmedYear = formValues.year.trim();
     const trimmedRating = formValues.rating.trim();
@@ -182,19 +207,28 @@ export default function Page() {
 
     try {
       setSubmitting(true);
-      await addMovie({
-        title: trimmedTitle,
-        year: parsedYear,
-        rating: parsedRating,
-      });
+      if (modalMode === "add") {
+        await addMovie({
+          title: trimmedTitle,
+          year: parsedYear,
+          rating: parsedRating,
+        });
+      } else if (modalMode === "edit" && editingMovie) {
+        await updateMovieDetails({
+          id: editingMovie.id,
+          title: trimmedTitle,
+          year: parsedYear,
+          rating: parsedRating,
+        });
+      }
       await loadMovies();
-      closeAddModal();
+      closeModal();
     } catch (error) {
-      console.error("Failed to add movie", error);
+      console.error("Failed to save movie", error);
     } finally {
       setSubmitting(false);
     }
-  }, [closeAddModal, formValues, loadMovies]);
+  }, [closeModal, editingMovie, formValues, loadMovies, modalMode]);
 
   return (
     <View
@@ -248,10 +282,11 @@ export default function Page() {
         }
       />
 
-      <AddMovieModal
-        visible={isAddModalVisible}
-        onClose={closeAddModal}
-        onSubmit={handleSubmitNewMovie}
+      <MovieFormModal
+        visible={isModalVisible}
+        mode={modalMode}
+        onClose={closeModal}
+        onSubmit={handleSubmitMovie}
         formValues={formValues}
         onChange={updateFormValue}
         errors={formErrors}
@@ -264,9 +299,10 @@ export default function Page() {
 type MovieListItemProps = {
   movie: MovieRecord;
   onToggle: (movie: MovieRecord) => void;
+  onEdit: (movie: MovieRecord) => void;
 };
 
-function MovieListItem({ movie, onToggle }: MovieListItemProps) {
+function MovieListItem({ movie, onToggle, onEdit }: MovieListItemProps) {
   const statusLabel = movie.watched ? "✓ Đã xem" : "Chưa xem";
   const ratingLabel =
     movie.rating !== null ? `Đánh giá: ${movie.rating}/5` : "Chưa đánh giá";
@@ -297,14 +333,25 @@ function MovieListItem({ movie, onToggle }: MovieListItemProps) {
         >
           {statusLabel}
         </Text>
-        <Text style={styles.ratingText}>{ratingLabel}</Text>
+        <View style={styles.cardFooterRight}>
+          <Text style={styles.ratingText}>{ratingLabel}</Text>
+          <TouchableOpacity
+            style={styles.editButton}
+            onPress={() => onEdit(movie)}
+            accessibilityRole="button"
+            accessibilityLabel={`Chỉnh sửa ${movie.title}`}
+          >
+            <Text style={styles.editButtonText}>Sửa</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </TouchableOpacity>
   );
 }
 
-type AddModalProps = {
+type MovieFormModalProps = {
   visible: boolean;
+  mode: "add" | "edit";
   onClose: () => void;
   onSubmit: () => void;
   submitting: boolean;
@@ -313,15 +360,20 @@ type AddModalProps = {
   errors: FormErrors;
 };
 
-function AddMovieModal({
+function MovieFormModal({
   visible,
+  mode,
   onClose,
   onSubmit,
   submitting,
   formValues,
   onChange,
   errors,
-}: AddModalProps) {
+}: MovieFormModalProps) {
+  const modalTitle =
+    mode === "add" ? "Thêm phim mới" : "Chỉnh sửa thông tin phim";
+  const submitLabel = mode === "add" ? "Thêm phim" : "Lưu thay đổi";
+
   return (
     <Modal
       animationType="slide"
@@ -334,7 +386,7 @@ function AddMovieModal({
         style={styles.modalBackdrop}
       >
         <View style={styles.modalContainer}>
-          <Text style={styles.modalTitle}>Thêm phim mới</Text>
+          <Text style={styles.modalTitle}>{modalTitle}</Text>
           <View style={styles.modalField}>
             <Text style={styles.modalLabel}>Tiêu đề *</Text>
             <TextInput
@@ -397,7 +449,7 @@ function AddMovieModal({
               disabled={submitting}
             >
               <Text style={styles.modalSubmitText}>
-                {submitting ? "Đang lưu..." : "Thêm phim"}
+                {submitting ? "Đang lưu..." : submitLabel}
               </Text>
             </TouchableOpacity>
           </View>
@@ -501,6 +553,11 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
+  cardFooterRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   statusBadge: {
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -521,6 +578,17 @@ const styles = StyleSheet.create({
   ratingText: {
     fontSize: 12,
     color: "#4b5563",
+  },
+  editButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: "#e0f2fe",
+  },
+  editButtonText: {
+    color: "#0369a1",
+    fontSize: 12,
+    fontWeight: "600",
   },
   emptyState: {
     alignItems: "center",

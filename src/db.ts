@@ -94,3 +94,19 @@ export async function updateMovieWatched(id: number, watched: WatchedFlag) {
   const db = await getDatabase();
   return db.runAsync("UPDATE movies SET watched = ? WHERE id = ?", watched, id);
 }
+
+export async function updateMovieDetails(payload: {
+  id: number;
+  title: string;
+  year?: number | null;
+  rating?: number | null;
+}) {
+  const db = await getDatabase();
+  return db.runAsync(
+    "UPDATE movies SET title = ?, year = ?, rating = ? WHERE id = ?",
+    payload.title,
+    payload.year ?? null,
+    payload.rating ?? null,
+    payload.id,
+  );
+}
