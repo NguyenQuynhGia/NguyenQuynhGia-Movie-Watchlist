@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -31,6 +37,7 @@ type FormState = {
 };
 
 type FormErrors = Partial<Record<keyof FormState, string>>;
+type WatchedFilter = "all" | "watched" | "unwatched";
 
 export default function Page() {
   const { top, bottom } = useSafeAreaInsets();
@@ -38,6 +45,8 @@ export default function Page() {
   const [movies, setMovies] = useState<MovieRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [watchedFilter, setWatchedFilter] = useState<WatchedFilter>("all");
   const [isModalVisible, setModalVisible] = useState(false);
   const [modalMode, setModalMode] = useState<"add" | "edit">("add");
   const [editingMovie, setEditingMovie] = useState<MovieRecord | null>(null);
@@ -99,6 +108,14 @@ export default function Page() {
     setRefreshing(true);
     loadMovies();
   }, [loadMovies]);
+
+  const handleSearchChange = useCallback((text: string) => {
+    setSearchQuery(text);
+  }, []);
+
+  const handleFilterChange = useCallback((value: WatchedFilter) => {
+    setWatchedFilter(value);
+  }, []);
 
   const handleToggleWatched = useCallback(async (movie: MovieRecord) => {
     const nextWatched = (movie.watched ? 0 : 1) as WatchedFlag;
@@ -273,6 +290,34 @@ export default function Page() {
     }
   }, [closeModal, editingMovie, formValues, loadMovies, modalMode]);
 
+  const filterOptions = useMemo(
+    () => [
+      { value: "all" as WatchedFilter, label: "Tất cả" },
+      { value: "unwatched" as WatchedFilter, label: "Chưa xem" },
+      { value: "watched" as WatchedFilter, label: "Đã xem" },
+    ],
+    [],
+  );
+
+  const filteredMovies = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    return movies.filter((movie) => {
+      const matchesQuery = normalizedQuery
+        ? movie.title.toLowerCase().includes(normalizedQuery)
+        : true;
+      const matchesFilter =
+        watchedFilter === "all"
+          ? true
+          : watchedFilter === "watched"
+            ? movie.watched === 1
+            : movie.watched === 0;
+      return matchesQuery && matchesFilter;
+    });
+  }, [movies, searchQuery, watchedFilter]);
+
+  const noMovies = !loading && movies.length === 0;
+  const noMatch = !loading && movies.length > 0 && filteredMovies.length === 0;
+
   return (
     <View
       style={[
@@ -298,16 +343,50 @@ export default function Page() {
           </TouchableOpacity>
         </View>
       </View>
+      <View style={styles.toolbar}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Tìm kiếm phim..."
+          placeholderTextColor="#9ca3af"
+          value={searchQuery}
+          onChangeText={handleSearchChange}
+          autoCorrect={false}
+        />
+        <View style={styles.filterRow}>
+          {filterOptions.map((option) => {
+            const active = watchedFilter === option.value;
+            return (
+              <TouchableOpacity
+                key={option.value}
+                style={[
+                  styles.filterButton,
+                  active ? styles.filterButtonActive : undefined,
+                ]}
+                onPress={() => handleFilterChange(option.value)}
+              >
+                <Text
+                  style={[
+                    styles.filterButtonText,
+                    active ? styles.filterButtonTextActive : undefined,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
 
       <FlatList
-        data={movies}
+        data={filteredMovies}
         keyExtractor={(item) => `${item.id}`}
         renderItem={renderItem}
         refreshing={refreshing}
         onRefresh={handleRefresh}
         contentContainerStyle={[
           styles.listContent,
-          movies.length === 0 ? styles.listEmptyContent : null,
+          filteredMovies.length === 0 ? styles.listEmptyContent : null,
         ]}
         ListEmptyComponent={
           loading ? (
@@ -315,13 +394,19 @@ export default function Page() {
               <ActivityIndicator size="large" color="#1f2937" />
               <Text style={styles.emptyStateText}>Đang tải danh sách...</Text>
             </View>
-          ) : (
+          ) : noMatch ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>
+                Không tìm thấy phim nào khớp với tiêu chí.
+              </Text>
+            </View>
+          ) : noMovies ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyStateText}>
                 Chưa có phim nào trong danh sách.
               </Text>
             </View>
-          )
+          ) : null
         }
       />
 
@@ -741,5 +826,48 @@ const styles = StyleSheet.create({
   },
   modalButtonDisabled: {
     opacity: 0.7,
+  },
+  toolbar: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 4,
+    backgroundColor: "#f9fafb",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: "#e5e7eb",
+  },
+  searchInput: {
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === "ios" ? 10 : 8,
+    fontSize: 16,
+    color: "#111827",
+    backgroundColor: "#fff",
+  },
+  filterRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 10,
+  },
+  filterButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    backgroundColor: "#fff",
+  },
+  filterButtonActive: {
+    backgroundColor: "#1d4ed8",
+    borderColor: "#1d4ed8",
+  },
+  filterButtonText: {
+    fontSize: 13,
+    color: "#374151",
+    fontWeight: "500",
+  },
+  filterButtonTextActive: {
+    color: "#fff",
   },
 });
