@@ -73,3 +73,19 @@ export async function getAllMovies() {
     "SELECT * FROM movies ORDER BY created_at DESC",
   );
 }
+
+export async function addMovie(payload: {
+  title: string;
+  year?: number | null;
+  rating?: number | null;
+}) {
+  const db = await getDatabase();
+  const now = Date.now();
+  return db.runAsync(
+    "INSERT INTO movies (title, year, watched, rating, created_at) VALUES (?, ?, 0, ?, ?)",
+    payload.title,
+    payload.year ?? null,
+    payload.rating ?? null,
+    now,
+  );
+}
