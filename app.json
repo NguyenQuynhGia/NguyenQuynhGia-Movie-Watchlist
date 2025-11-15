@@ -1,18 +1,25 @@
 {
-  "scheme": "acme",
-  "userInterfaceStyle": "automatic",
-  "orientation": "default",
-  "web": {
-    "output": "static"
-  },
-  "plugins": [
-    [
-      "expo-router",
-      {
-        "origin": "https://n"
-      }
-    ]
-  ],
-  "name": "NguyenQuynhGia_22001575_final10_12",
-  "slug": "NguyenQuynhGia_22001575_final10_12"
+  "expo": {
+    "name": "Movie Watchlist",
+    "slug": "movie-watchlist",
+    "version": "1.0.0",
+    "scheme": "moviewatchlist",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "web": {
+      "output": "static"
+    },
+    "plugins": [
+      [
+        "expo-router",
+        {
+          "origin": "https://github.com/expo/router"
+        }
+      ],
+      "expo-sqlite"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
 }
