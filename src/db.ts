@@ -110,3 +110,8 @@ export async function updateMovieDetails(payload: {
     payload.id,
   );
 }
+
+export async function deleteMovie(id: number) {
+  const db = await getDatabase();
+  return db.runAsync("DELETE FROM movies WHERE id = ?", id);
+}

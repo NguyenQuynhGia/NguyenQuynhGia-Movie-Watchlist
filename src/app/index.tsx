@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   KeyboardAvoidingView,
   ListRenderItem,
@@ -15,6 +16,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   addMovie,
+  deleteMovie,
   getAllMovies,
   initializeDatabase,
   updateMovieDetails,
@@ -134,6 +136,46 @@ export default function Page() {
     setModalVisible(true);
   }, []);
 
+  const handleDeleteMovie = useCallback((movie: MovieRecord) => {
+    const performDelete = async () => {
+      try {
+        await deleteMovie(movie.id);
+        setMovies((prev) => prev.filter((entry) => entry.id !== movie.id));
+      } catch (error) {
+        console.error("Failed to delete movie", error);
+      }
+    };
+
+    if (Platform.OS === "web") {
+      const confirmFn = (globalThis as typeof globalThis & {
+        confirm?: (message?: string) => boolean;
+      }).confirm;
+      const confirmed = confirmFn
+        ? confirmFn(`Bạn có chắc muốn xóa "${movie.title}"?`)
+        : true;
+      if (confirmed) {
+        void performDelete();
+      }
+      return;
+    }
+
+    Alert.alert(
+      "Xóa phim",
+      `Bạn có chắc muốn xóa "${movie.title}"?`,
+      [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Xóa",
+          style: "destructive",
+          onPress: () => {
+            void performDelete();
+          },
+        },
+      ],
+      { cancelable: true },
+    );
+  }, []);
+
   const closeModal = useCallback(() => {
     setModalVisible(false);
     setFormErrors({});
@@ -148,9 +190,10 @@ export default function Page() {
         movie={item}
         onToggle={handleToggleWatched}
         onEdit={handleEditMovie}
+        onDelete={handleDeleteMovie}
       />
     ),
-    [handleEditMovie, handleToggleWatched],
+    [handleDeleteMovie, handleEditMovie, handleToggleWatched],
   );
 
   const updateFormValue = useCallback((field: keyof FormState, value: string) => {
@@ -300,9 +343,10 @@ type MovieListItemProps = {
   movie: MovieRecord;
   onToggle: (movie: MovieRecord) => void;
   onEdit: (movie: MovieRecord) => void;
+  onDelete: (movie: MovieRecord) => void;
 };
 
-function MovieListItem({ movie, onToggle, onEdit }: MovieListItemProps) {
+function MovieListItem({ movie, onToggle, onEdit, onDelete }: MovieListItemProps) {
   const statusLabel = movie.watched ? "✓ Đã xem" : "Chưa xem";
   const ratingLabel =
     movie.rating !== null ? `Đánh giá: ${movie.rating}/5` : "Chưa đánh giá";
@@ -335,14 +379,24 @@ function MovieListItem({ movie, onToggle, onEdit }: MovieListItemProps) {
         </Text>
         <View style={styles.cardFooterRight}>
           <Text style={styles.ratingText}>{ratingLabel}</Text>
-          <TouchableOpacity
-            style={styles.editButton}
-            onPress={() => onEdit(movie)}
-            accessibilityRole="button"
-            accessibilityLabel={`Chỉnh sửa ${movie.title}`}
-          >
-            <Text style={styles.editButtonText}>Sửa</Text>
-          </TouchableOpacity>
+          <View style={styles.cardActions}>
+            <TouchableOpacity
+              style={styles.editButton}
+              onPress={() => onEdit(movie)}
+              accessibilityRole="button"
+              accessibilityLabel={`Chỉnh sửa ${movie.title}`}
+            >
+              <Text style={styles.editButtonText}>Sửa</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.deleteButton}
+              onPress={() => onDelete(movie)}
+              accessibilityRole="button"
+              accessibilityLabel={`Xóa ${movie.title}`}
+            >
+              <Text style={styles.deleteButtonText}>Xóa</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </TouchableOpacity>
@@ -558,6 +612,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
+  cardActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
   statusBadge: {
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -587,6 +646,17 @@ const styles = StyleSheet.create({
   },
   editButtonText: {
     color: "#0369a1",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  deleteButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: "#fee2e2",
+  },
+  deleteButtonText: {
+    color: "#b91c1c",
     fontSize: 12,
     fontWeight: "600",
   },
