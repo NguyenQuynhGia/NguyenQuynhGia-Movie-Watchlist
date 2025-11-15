@@ -1,102 +1,209 @@
-import { Link } from "expo-router";
-import React, { useEffect } from "react";
-import { Text, View } from "react-native";
+import React, { useCallback, useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  FlatList,
+  ListRenderItem,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { initializeDatabase } from "../db";
+import { getAllMovies, initializeDatabase, MovieRecord } from "../db";
 
 export default function Page() {
+  const { top, bottom } = useSafeAreaInsets();
+  const [movies, setMovies] = useState<MovieRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
-    initializeDatabase().catch((error) => {
-      console.error("Failed to initialize database", error);
-    });
+    let isMounted = true;
+    const bootstrap = async () => {
+      try {
+        await initializeDatabase();
+        const data = await getAllMovies();
+        if (isMounted) {
+          setMovies(data);
+        }
+      } catch (error) {
+        console.error("Failed to load movies", error);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    bootstrap();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  return (
-    <View className="flex flex-1">
-      <Header />
-      <Content />
-      <Footer />
-    </View>
+  const renderItem = useCallback<ListRenderItem<MovieRecord>>(
+    ({ item }) => <MovieListItem movie={item} />,
+    [],
   );
-}
 
-function Content() {
-  return (
-    <View className="flex-1">
-      <View className="py-12 md:py-24 lg:py-32 xl:py-48">
-        <View className="px-4 md:px-6">
-          <View className="flex flex-col items-center gap-4 text-center">
-            <Text
-              role="heading"
-              className="text-3xl text-center native:text-5xl font-bold tracking-tighter sm:text-4xl md:text-5xl lg:text-6xl"
-            >
-              Welcome to Project ACME
-            </Text>
-            <Text className="mx-auto max-w-[700px] text-lg text-center text-gray-500 md:text-xl dark:text-gray-400">
-              Discover and collaborate on acme. Explore our services now.
-            </Text>
-
-            <View className="gap-4">
-              <Link
-                suppressHighlighting
-                className="flex h-9 items-center justify-center overflow-hidden rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-gray-50 web:shadow ios:shadow transition-colors hover:bg-gray-900/90 active:bg-gray-400/90 web:focus-visible:outline-none web:focus-visible:ring-1 focus-visible:ring-gray-950 disabled:pointer-events-none disabled:opacity-50 dark:bg-gray-50 dark:text-gray-900 dark:hover:bg-gray-50/90 dark:focus-visible:ring-gray-300"
-                href="/"
-              >
-                Explore
-              </Link>
-            </View>
-          </View>
-        </View>
-      </View>
-    </View>
-  );
-}
-
-function Header() {
-  const { top } = useSafeAreaInsets();
-  return (
-    <View style={{ paddingTop: top }}>
-      <View className="px-4 lg:px-6 h-14 flex items-center flex-row justify-between ">
-        <Link className="font-bold flex-1 items-center justify-center" href="/">
-          ACME
-        </Link>
-        <View className="flex flex-row gap-4 sm:gap-6">
-          <Link
-            className="text-md font-medium hover:underline web:underline-offset-4"
-            href="/"
-          >
-            About
-          </Link>
-          <Link
-            className="text-md font-medium hover:underline web:underline-offset-4"
-            href="/"
-          >
-            Product
-          </Link>
-          <Link
-            className="text-md font-medium hover:underline web:underline-offset-4"
-            href="/"
-          >
-            Pricing
-          </Link>
-        </View>
-      </View>
-    </View>
-  );
-}
-
-function Footer() {
-  const { bottom } = useSafeAreaInsets();
   return (
     <View
-      className="flex shrink-0 bg-gray-100 native:hidden"
-      style={{ paddingBottom: bottom }}
+      style={[
+        styles.screen,
+        { paddingTop: top + 12, paddingBottom: bottom + 12 },
+      ]}
     >
-      <View className="py-6 flex-1 items-start px-4 md:px-6 ">
-        <Text className={"text-center text-gray-700"}>
-          © {new Date().getFullYear()} Me
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Movie Watchlist</Text>
+        <Text style={styles.headerSubtitle}>
+          Theo dõi phim cần xem và đã xem của bạn.
         </Text>
+      </View>
+
+      <FlatList
+        data={movies}
+        keyExtractor={(item) => `${item.id}`}
+        renderItem={renderItem}
+        contentContainerStyle={[
+          styles.listContent,
+          movies.length === 0 ? styles.listEmptyContent : null,
+        ]}
+        ListEmptyComponent={
+          loading ? (
+            <View style={styles.emptyState}>
+              <ActivityIndicator size="large" color="#1f2937" />
+              <Text style={styles.emptyStateText}>Đang tải danh sách...</Text>
+            </View>
+          ) : (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>
+                Chưa có phim nào trong danh sách.
+              </Text>
+            </View>
+          )
+        }
+      />
+    </View>
+  );
+}
+
+function MovieListItem({ movie }: { movie: MovieRecord }) {
+  const statusLabel = movie.watched ? "Đã xem" : "Chưa xem";
+  const ratingLabel =
+    movie.rating !== null ? `Đánh giá: ${movie.rating}/5` : "Chưa đánh giá";
+
+  return (
+    <View style={styles.card}>
+      <View style={styles.cardHeader}>
+        <Text style={styles.cardTitle}>{movie.title}</Text>
+        {movie.year ? <Text style={styles.cardYear}>({movie.year})</Text> : null}
+      </View>
+      <View style={styles.cardFooter}>
+        <Text
+          style={[
+            styles.statusBadge,
+            movie.watched ? styles.statusWatched : styles.statusPlanned,
+          ]}
+        >
+          {statusLabel}
+        </Text>
+        <Text style={styles.ratingText}>{ratingLabel}</Text>
       </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: "#f9fafb",
+  },
+  header: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: "#e5e7eb",
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  headerSubtitle: {
+    marginTop: 4,
+    fontSize: 14,
+    color: "#4b5563",
+  },
+  listContent: {
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
+  listEmptyContent: {
+    flexGrow: 1,
+    justifyContent: "center",
+  },
+  card: {
+    padding: 16,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    marginBottom: 12,
+    shadowColor: "#111827",
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 8,
+  },
+  cardTitle: {
+    flexShrink: 1,
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#111827",
+  },
+  cardYear: {
+    fontSize: 14,
+    color: "#6b7280",
+  },
+  cardFooter: {
+    marginTop: 12,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    fontSize: 12,
+    fontWeight: "600",
+    overflow: "hidden",
+    color: "#111827",
+  },
+  statusPlanned: {
+    backgroundColor: "#fee2e2",
+    color: "#991b1b",
+  },
+  statusWatched: {
+    backgroundColor: "#dcfce7",
+    color: "#166534",
+  },
+  ratingText: {
+    fontSize: 12,
+    color: "#4b5563",
+  },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  emptyStateText: {
+    marginTop: 12,
+    textAlign: "center",
+    color: "#4b5563",
+    fontSize: 16,
+  },
+});

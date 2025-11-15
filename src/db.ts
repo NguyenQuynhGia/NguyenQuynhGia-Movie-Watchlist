@@ -66,3 +66,10 @@ export async function initializeDatabase() {
     });
   }
 }
+
+export async function getAllMovies() {
+  const db = await getDatabase();
+  return db.getAllAsync<MovieRecord>(
+    "SELECT * FROM movies ORDER BY created_at DESC",
+  );
+}
