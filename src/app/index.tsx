@@ -1,9 +1,16 @@
 import { Link } from "expo-router";
-import React from "react";
+import React, { useEffect } from "react";
 import { Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { initializeDatabase } from "../db";
 
 export default function Page() {
+  useEffect(() => {
+    initializeDatabase().catch((error) => {
+      console.error("Failed to initialize database", error);
+    });
+  }, []);
+
   return (
     <View className="flex flex-1">
       <Header />
